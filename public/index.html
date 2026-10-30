@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Daily Mood Log</title>
+</head>
+<body>
+  <h1>Daily Mood Log</h1>
+
+  <h2>Add Entry</h2>
+  <form id="entry-form">
+    <p>
+      <label>Date: <input type="date" id="date" required /></label>
+    </p>
+    <p>
+      <label>Mood:
+        <select id="mood" required>
+          <option value="">Select a mood</option>
+          <option value="Happy">Happy</option>
+          <option value="Calm">Calm</option>
+          <option value="Neutral">Neutral</option>
+          <option value="Low">Low</option>
+          <option value="Anxious">Anxious</option>
+        </select>
+      </label>
+    </p>
+    <p>
+      <label>Note:<br />
+        <textarea id="note" rows="4" cols="40" placeholder="What happened today?"></textarea>
+      </label>
+    </p>
+    <button type="submit">Save</button>
+  </form>
+  <p id="message"></p>
+
+  <h2>My Entries</h2>
+  <p>Status: <span id="status">connecting...</span></p>
+  <ul id="list"></ul>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const form = document.getElementById("entry-form");
+    const dateInput = document.getElementById("date");
+    const moodInput = document.getElementById("mood");
+    const noteInput = document.getElementById("note");
+    const message = document.getElementById("message");
+    const list = document.getElementById("list");
+    const status = document.getElementById("status");
+
+    // Default the date to today
+    dateInput.value = new Date().toISOString().slice(0, 10);
+
+    const socket = io();
+
+    socket.on("connect", () => {
+      status.textContent = "connected";
+    });
+
+    socket.on("disconnect", () => {
+      status.textContent = "disconnected";
+    });
+
+    // server pushes the full list on connect and after every new entry
+    socket.on("entries", (entries) => {
+      render(entries);
+    });
+
+    function render(entries) {
+      list.textContent = "";
+
+      if (!entries || entries.length === 0) {
+        list.textContent = "No entries yet";
+        return;
+      }
+
+      entries
+        .slice()
+        .reverse()
+        .forEach((entry) => {
+          const item = document.createElement("li");
+          item.textContent = entry.date + " | " + entry.mood + (entry.note ? " | " + entry.note : "");
+          list.appendChild(item);
+        });
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      message.textContent = "Saving...";
+
+      socket.emit(
+        "new-entry",
+        {
+          date: dateInput.value,
+          mood: moodInput.value,
+          note: noteInput.value,
+        },
+        (result) => {
+          if (result && result.ok) {
+            message.textContent = "Saved successfully";
+            noteInput.value = "";
+          } else {
+            message.textContent = (result && result.error) || "Failed to save";
+          }
+        }
+      );
+    });
+  </script>
+</body>
+</html>
